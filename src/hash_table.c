@@ -139,6 +139,10 @@ void ht_delete(ht_hash_table *ht, const char *key)
             if (strcmp(item->key, key) == 0)
             {
                 ht_del_item(item);
+                // simply deleting from the ht will cause issues with our
+                // collision chains. Replacing with a default deleted item
+                // will allow us to maintain any collision chains that we
+                // have previously developed.
                 ht->items[index] = &HT_DELETED_ITEM;
             }
             index = ht_get_hash(key, ht->size, i);
