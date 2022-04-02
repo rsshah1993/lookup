@@ -49,7 +49,17 @@ static void ht_del(ht_hash_table *ht)
     free(ht);
 }
 
-static int ht_hash(const char *s, const int a, const int m)
+/*
+Hashing function which hashes a string as follows:
+
+    hash = ((a ** (len(s) - i + 1)) * s[i]) % m
+
+For each character in s, where s is the string to be hashed, a is a
+prime number larger than the total expected characters (in this
+case we are using ASCII characters so a prime larger than 128),
+and m is the number of hash buckets we would like.
+*/
+int ht_hash(char *s, const int a, const int m)
 {
     long hash = 0;
     const int len_s = strlen(s);
