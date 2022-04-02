@@ -10,3 +10,4 @@ build: clean
 clean:
 	rm -rf build/
 	mkdir -p build/
+	touch build/.gitkeep
