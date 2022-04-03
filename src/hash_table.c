@@ -4,9 +4,12 @@
 #include <math.h>
 
 #include "hash_table.h"
+#include "prime.h"
 
 const int HT_PRIME1 = 153;
 const int HT_PRIME2 = 163;
+const int HT_INITIAL_BASE_SIZE = 53;
+static ht_item HT_DELETED_ITEM = {NULL, NULL};
 
 // initialize hash table item
 static ht_item *ht_new_item(const char *k, const char *v)
@@ -17,14 +20,22 @@ static ht_item *ht_new_item(const char *k, const char *v)
     return i;
 }
 
+static ht_hash_table *ht_new_sized(const int base_size)
+{
+    ht_hash_table *ht = malloc(sizeof(ht_hash_table));
+    ht->base_size = base_size;
+
+    ht->size = next_prime(ht->base_size);
+    ht->count = 0;
+
+    ht->items = calloc((size_t)ht->size, sizeof(ht_item *));
+
+    return ht;
+}
 // initialize new hash table
 ht_hash_table *ht_new()
 {
-    ht_hash_table *ht = malloc(sizeof(ht_hash_table));
-
-    ht->size = 53;
-    ht->count = 0;
-    ht->items = calloc((size_t)ht->size, sizeof(ht_item *));
+    ht_hash_table *ht = ht_new_sized(HT_INITIAL_BASE_SIZE);
 
     return ht;
 }
@@ -38,12 +49,12 @@ static void ht_del_item(ht_item *i)
 }
 
 // delete hash table and free all associated memory
-static void ht_delete_hash_table(ht_hash_table *ht)
+void ht_delete_hash_table(ht_hash_table *ht)
 {
     for (int i = 0; i < ht->size; i++)
     {
         ht_item *item = ht->items[i];
-        if (item != NULL)
+        if (item != NULL && item != &HT_DELETED_ITEM)
         {
             ht_del_item(item);
         }
@@ -51,6 +62,53 @@ static void ht_delete_hash_table(ht_hash_table *ht)
 
     free(ht->items);
     free(ht);
+}
+
+static void ht_resize(ht_hash_table *ht, const int base_size)
+{
+    if (base_size < HT_INITIAL_BASE_SIZE)
+    {
+        return;
+    }
+    ht_hash_table *ht_new = ht_new_sized(base_size);
+    for (int i = 0; i < ht->size; i++)
+    {
+        ht_item *item = ht->items[i];
+        if (item != NULL && item != &HT_DELETED_ITEM)
+        {
+            ht_insert(ht_new, item->key, item->value);
+        }
+    }
+    ht->base_size = ht_new->base_size;
+    ht->count = ht_new->count;
+
+    const int tmp_size = ht->size;
+    ht->size = ht_new->size;
+    ht_new->size = tmp_size;
+
+    ht_item **tmp_items = ht->items;
+    ht->items = ht_new->items;
+    ht_new->items = tmp_items;
+
+    ht_delete_hash_table(ht_new);
+}
+
+static void ht_resize_up(ht_hash_table *ht)
+{
+    const int new_size = ht->base_size * 2;
+    ht_resize(ht, new_size);
+}
+
+static void ht_resize_down(ht_hash_table *ht)
+{
+    const int new_size = ht->base_size / 2;
+    ht_resize(ht, new_size);
+}
+
+int get_load(ht_hash_table *ht)
+{
+    const int load = (ht->count / ht->size) * 100;
+    return load;
 }
 
 /*
@@ -93,6 +151,12 @@ static int ht_get_hash(const char *s, const int num_buckets, const int attempt)
 // to size of 53)
 void ht_insert(ht_hash_table *ht, const char *key, const char *value)
 {
+    int load = get_load(ht);
+    if (load > 70)
+    {
+        ht_resize_up(ht);
+    }
+
     ht_item *item = ht_new_item(key, value);
     int index = ht_get_hash(item->key, ht->size, 0);
     int i = 0;
@@ -106,6 +170,12 @@ void ht_insert(ht_hash_table *ht, const char *key, const char *value)
 
 char *ht_search(ht_hash_table *ht, const char *key)
 {
+    int load = get_load(ht);
+    if (load < 10)
+    {
+        ht_resize_down(ht);
+    }
+
     int index = ht_get_hash(key, ht->size, 0);
     ht_item *item = ht->items[index];
     int i = 1;
@@ -125,7 +195,6 @@ char *ht_search(ht_hash_table *ht, const char *key)
     return NULL;
 }
 
-static ht_item HT_DELETED_ITEM = {NULL, NULL};
 void ht_delete(ht_hash_table *ht, const char *key)
 {
     int index = ht_get_hash(key, ht->size, 0);
@@ -163,13 +232,4 @@ void print_hash_map(ht_hash_table *ht)
             printf("Item %d has key: %s and value: %s\n", i, item->key, item->value);
         }
     }
-}
-int main(void)
-{
-    ht_hash_table *ht = ht_new();
-    ht_insert(ht, "cat", "cats");
-    ht_insert(ht, "dog", "dogs");
-    ht_insert(ht, "spider", "spiders");
-    print_hash_map(ht);
-    ht_delete_hash_table(ht);
 }
